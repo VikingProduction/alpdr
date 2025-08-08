@@ -1,8 +1,14 @@
-# ALPR Watchlist (Flutter 3.22.x / Dart 3.4.x compatible)
+# ALPR Watchlist — Dernières versions (Flutter 3.32.8 / Dart >= 3.5)
 
-- Flux vidéo continu (throttle ~2 fps) avec `camera 0.10.5+9` (pin).
-- OCR on-device via Google ML Kit.
-- Multi-plaques par frame + auto-zoom heuristique.
-- CI fournie pour Android SDK 35 + patch compileSdk 35.
+- Flux vidéo continu (camera ^0.11.x), multi-plaques, auto-zoom.
+- OCR on-device via Google ML Kit (google_mlkit_text_recognition ^0.15.x).
+- Watchlist locale (shared_preferences ^2.3.x).
+- CI incluse: Android SDK 35 + patch compileSdk 35, build APK.
 
-Si vous passez à Flutter 3.32+, utilisez la variante plus récente (Dart >=3.5, camera ^0.11.x) et retirez les overrides.
+## Démarrage rapide
+```
+flutter pub get
+flutter create . --platforms=android
+flutter build apk --debug
+```
+Artefact CI: onglet **Actions** -> téléchargement `app-debug.apk`.

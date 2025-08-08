@@ -151,8 +151,8 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
         final medianW = widths[widths.length ~/ 2];
         final frac = medianW / imageSize.width;
         double target = _zoom;
-        if (frac < 0.25) target = min(_maxZoom, _zoom + 0.2);
-        else if (frac > 0.60) target = max(_minZoom, _zoom - 0.2);
+        if (frac < 0.25) target = (_zoom + 0.2).clamp(_minZoom, _maxZoom);
+        else if (frac > 0.60) target = (_zoom - 0.2).clamp(_minZoom, _maxZoom);
         if ((target - _zoom).abs() >= 0.05) {
           _zoom = target;
           try { await _controller?.setZoomLevel(_zoom); } catch (_) {}
