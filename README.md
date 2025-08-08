@@ -39,3 +39,9 @@ Application Flutter (Android + iOS) qui utilise la caméra pour lire des plaques
 ## Disclaimer
 - Vérifiez la conformité légale (données personnelles) selon votre juridiction.
 - L’OCR est sensible à la lumière, l’angle et l’état de la plaque. Ajustez `kPlatePatterns` si nécessaire.
+
+## Mode flux vidéo + multi-plaques + auto-zoom
+- Le scanner traite ~2 fps en flux vidéo pour de bonnes perfs.
+- Les candidates plaques sont extraites par ligne OCR (regex), avec affichage des cadres.
+- Le zoom s'ajuste automatiquement pour viser ~40% de largeur de cadre pour la plaque médiane détectée (heuristique).
+- Alerte si une ou plusieurs plaques correspondent à la watchlist.

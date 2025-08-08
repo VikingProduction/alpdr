@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:math';
+import 'dart:typed_data';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -17,11 +19,20 @@ class ScanPage extends StatefulWidget {
 class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
   CameraController? _controller;
   late final TextRecognizer _recognizer;
-  bool _isProcessing = false;
-  Timer? _shotTimer;
+  bool _busy = false;
+  Timer? _throttle;
   Set<String> _watchlist = {};
-  String? _lastHit;
-  DateTime _lastHitAt = DateTime.fromMillisecondsSinceEpoch(0);
+  Set<String> _currentHits = {};
+  DateTime _lastHaptic = DateTime.fromMillisecondsSinceEpoch(0);
+
+  double _minZoom = 1.0;
+  double _maxZoom = 1.0;
+  double _zoom = 1.0;
+
+  // For overlay
+  List<Rect> _candidateBoxes = [];
+  List<String> _candidateTexts = [];
+  Size _lastImageSize = const Size(0, 0);
 
   @override
   void initState() {
@@ -34,7 +45,7 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _shotTimer?.cancel();
+    _throttle?.cancel();
     _controller?.dispose();
     _recognizer.close();
     super.dispose();
@@ -45,7 +56,7 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
     final cam = _controller;
     if (cam == null || !cam.value.isInitialized) return;
     if (state == AppLifecycleState.inactive) {
-      _shotTimer?.cancel();
+      cam.stopImageStream();
       cam.dispose();
     } else if (state == AppLifecycleState.resumed) {
       _initCamera();
@@ -63,63 +74,118 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
     final back = cams.firstWhere((c) => c.lensDirection == CameraLensDirection.back, orElse: () => cams.first);
     final ctrl = CameraController(
       back,
-      ResolutionPreset.medium,
+      ResolutionPreset.high,
       enableAudio: false,
+      imageFormatGroup: ImageFormatGroup.yuv420,
     );
     await ctrl.initialize();
     await ctrl.setFlashMode(FlashMode.off);
-    setState(() => _controller = ctrl);
 
-    // Démarre la capture périodique (1 image / seconde)
-    _shotTimer?.cancel();
-    _shotTimer = Timer.periodic(const Duration(seconds: 1), (_) => _captureAndProcess());
+    try {
+      _minZoom = await ctrl.getMinZoomLevel();
+      _maxZoom = await ctrl.getMaxZoomLevel();
+      _zoom = max(1.0, _minZoom);
+      await ctrl.setZoomLevel(_zoom);
+    } catch (_) {}
+
+    await ctrl.startImageStream(_onFrame);
+    setState(() => _controller = ctrl);
   }
 
-  Future<void> _captureAndProcess() async {
-    if (_isProcessing) return;
-    final cam = _controller;
-    if (cam == null || !cam.value.isInitialized) return;
+  void _onFrame(CameraImage image) async {
+    if (_busy) return;
+    // Throttle to ~2 FPS (500 ms)
+    if (_throttle == null) {
+      _throttle = Timer(const Duration(milliseconds: 500), () => _throttle = null);
+    } else if (_throttle!.isActive) {
+      return;
+    }
 
-    _isProcessing = true;
+    _busy = true;
     try {
-      final shot = await cam.takePicture();
-      final inputImage = InputImage.fromFilePath(shot.path);
+      // Convert YUV to bytes for ML Kit
+      final WriteBuffer allBytes = WriteBuffer();
+      for (final Plane plane in image.planes) {
+        allBytes.putUint8List(plane.bytes);
+      }
+      final bytes = allBytes.done().buffer.asUint8List();
+
+      final Size imageSize = Size(image.width.toDouble(), image.height.toDouble());
+      _lastImageSize = imageSize;
+
+      final camera = _controller!;
+      final rotation = InputImageRotationValue.fromRawValue(camera.description.sensorOrientation) ?? InputImageRotation.rotation0deg;
+      final format = InputImageFormatValue.fromRawValue(image.format.raw) ?? InputImageFormat.nv21;
+      final metadata = InputImageMetadata(
+        size: imageSize,
+        rotation: rotation,
+        format: format,
+        bytesPerRow: image.planes.first.bytesPerRow,
+      );
+
+      final inputImage = InputImage.fromBytes(bytes: bytes, metadata: metadata);
       final result = await _recognizer.processImage(inputImage);
 
-      final buffer = StringBuffer();
+      final boxes = <Rect>[];
+      final texts = <String>[];
+      final candidates = <String>{};
+
       for (final block in result.blocks) {
         for (final line in block.lines) {
-          buffer.writeln(line.text);
-          for (final el in line.elements) {
-            buffer.writeln(el.text);
+          final lineText = line.text;
+          final found = extractPlateCandidates(lineText);
+          if (found.isNotEmpty) {
+            final bb = line.boundingBox;
+            for (final cand in found) {
+              candidates.add(cand);
+              if (bb != null) {
+                boxes.add(bb);
+                texts.add(cand);
+              }
+            }
           }
         }
       }
-      final text = buffer.toString();
-      final cands = extractPlateCandidates(text);
 
-      final hits = matchAgainstWatchlist(cands, _watchlist);
+      // Match against watchlist (multi-plate)
+      final hits = matchAgainstWatchlist(candidates, _watchlist).toSet();
+
+      // Auto-zoom heuristic: if we see any candidate boxes, try to keep typical width around 40% of frame
+      if (boxes.isNotEmpty) {
+        final widths = boxes.map((r) => r.width).toList()..sort();
+        final medianW = widths[widths.length ~/ 2];
+        final frac = medianW / imageSize.width;
+        double target = _zoom;
+        if (frac < 0.25) {
+          target = min(_maxZoom, _zoom + 0.2);
+        } else if (frac > 0.60) {
+          target = max(_minZoom, _zoom - 0.2);
+        }
+        if ((target - _zoom).abs() >= 0.05) {
+          _zoom = target;
+          try { await _controller?.setZoomLevel(_zoom); } catch (_) {}
+        }
+      }
+
+      // Update overlay + hits
+      setState(() {
+        _candidateBoxes = boxes;
+        _candidateTexts = texts;
+        _currentHits = hits;
+      });
+
+      // Haptics on new hits (cooldown 2s)
       if (hits.isNotEmpty) {
         final now = DateTime.now();
-        final sameAsBefore = _lastHit != null && hits.first == _lastHit && now.difference(_lastHitAt).inSeconds < 3;
-        if (!sameAsBefore) {
-          _lastHit = hits.first;
-          _lastHitAt = now;
-          if (mounted) {
-            HapticFeedback.heavyImpact();
-            if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Correspondance: ${hits.join(', ')}')),
-              );
-            }
-            setState(() {});
-          }
+        if (now.difference(_lastHaptic).inSeconds >= 2) {
+          _lastHaptic = now;
+          HapticFeedback.heavyImpact();
         }
       }
-    } catch (e) {
+    } catch (_) {
       // ignore
     } finally {
-      _isProcessing = false;
+      _busy = false;
     }
   }
 
@@ -130,27 +196,88 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
       appBar: AppBar(title: const Text('Scanner')),
       body: cam == null || !cam.value.isInitialized
           ? const Center(child: CircularProgressIndicator())
-          : Stack(
-              children: [
-                CameraPreview(cam),
-                if (_lastHit != null && DateTime.now().difference(_lastHitAt).inSeconds < 3)
-                  Align(
-                    alignment: Alignment.topCenter,
-                    child: DangerBanner(message: 'PLAQUE SURVEILLÉE DÉTECTÉE: $_lastHit'),
-                  ),
-                Align(
-                  alignment: Alignment.bottomCenter,
-                  child: Container(
-                    color: Colors.black.withOpacity(0.3),
-                    padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-                    child: const Text(
-                      'Cadrez la plaque à ~1–3 m. Luminosité suffisante = meilleurs résultats.',
-                      style: TextStyle(color: Colors.white),
+          : LayoutBuilder(
+              builder: (context, constraints) {
+                return Stack(
+                  children: [
+                    CameraPreview(cam),
+                    // Overlay plates (basic mapping; may be off if aspect ratios differ)
+                    CustomPaint(
+                      size: Size.infinite,
+                      painter: _PlateOverlayPainter(
+                        boxes: _candidateBoxes,
+                        labels: _candidateTexts,
+                        imageSize: _lastImageSize,
+                        previewSize: Size(constraints.maxWidth, constraints.maxHeight),
+                      ),
                     ),
-                  ),
-                ),
-              ],
+                    if (_currentHits.isNotEmpty)
+                      Align(
+                        alignment: Alignment.topCenter,
+                        child: DangerBanner(
+                          message: '${_currentHits.length} plaque(s) watchlist: ${_currentHits.join(", ")}',
+                        ),
+                      ),
+                    Align(
+                      alignment: Alignment.bottomCenter,
+                      child: Container(
+                        color: Colors.black.withOpacity(0.35),
+                        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                        child: Text(
+                          'Zoom: ${_zoom.toStringAsFixed(1)}  •  Cibles: ${_candidateTexts.length}',
+                          style: const TextStyle(color: Colors.white),
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              },
             ),
     );
   }
+}
+
+class _PlateOverlayPainter extends CustomPainter {
+  final List<Rect> boxes;
+  final List<String> labels;
+  final Size imageSize;
+  final Size previewSize;
+
+  _PlateOverlayPainter({
+    required this.boxes,
+    required this.labels,
+    required this.imageSize,
+    required this.previewSize,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (imageSize.width == 0 || imageSize.height == 0) return;
+
+    // Simple scale mapping (no rotation compensation):
+    final scaleX = previewSize.width / imageSize.width;
+    final scaleY = previewSize.height / imageSize.height;
+
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.0
+      ..color = const Color(0xFFFFC107); // amber-like (no explicit theme)
+
+    final textStyle = const TextStyle(color: Colors.white, fontSize: 12);
+
+    for (int i = 0; i < boxes.length; i++) {
+      final r = boxes[i];
+      final mapped = Rect.fromLTWH(r.left * scaleX, r.top * scaleY, r.width * scaleX, r.height * scaleY);
+      canvas.drawRect(mapped, paint);
+
+      final tp = TextPainter(
+        text: TextSpan(text: i < labels.length ? labels[i] : '', style: textStyle),
+        textDirection: TextDirection.ltr,
+      )..layout(maxWidth: mapped.width);
+      tp.paint(canvas, mapped.topLeft + const Offset(2, -14));
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
