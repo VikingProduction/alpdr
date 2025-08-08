@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../plate_matcher.dart';
 import '../watchlist_store.dart';
 
 class WatchlistPage extends StatefulWidget {

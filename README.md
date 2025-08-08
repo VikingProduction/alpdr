@@ -1,34 +1,21 @@
-# ALPR Watchlist (Flutter)
+# ALPR Watchlist (Flutter 3.32+) — Flux vidéo, multi-plaques, auto-zoom
 
-Application Flutter (Android + iOS) qui utilise la caméra pour lire des plaques d’immatriculation via OCR (Google ML Kit), compare chaque plaque à une watchlist locale et affiche une alerte en cas de correspondance.
-
-## Contenu
-- `lib/` : code source complet (scanner, OCR, watchlist, UI)
-- `.github/workflows/android.yml` : CI GitHub Actions pour générer automatiquement un APK **debug** (Android)
-- `scripts/` : scripts utilitaires (facultatifs)
+- Flux vidéo continu avec `camera` (Camerax).
+- OCR on-device via Google ML Kit (texte latin).
+- Extraction de **plusieurs plaques** par frame (regex pays EU + fallback).
+- Alerte si une ou plusieurs plaques matchent la **watchlist** locale.
+- **Auto-zoom** heuristique basé sur la taille des boîtes détectées.
+- Fonctionne hors-ligne. Android & iOS.
 
 ## Build local (Android)
-1. Installer Flutter (3.22.x), Android SDK.
-2. Dans ce dossier :
-   ```
-   flutter pub get
-   flutter create . --platforms=android
-   # Injecte la permission caméra si nécessaire (normalement le workflow le fait en CI)
-   sed -i '/<application/ i \    <uses-permission android:name="android.permission.CAMERA" />\n    <uses-feature android:name="android.hardware.camera" />\n    <uses-feature android:name="android.hardware.camera.autofocus" />' android/app/src/main/AndroidManifest.xml
-   flutter build apk --debug
-   ```
-   APK: `build/app/outputs/flutter-apk/app-debug.apk`
+1. Flutter 3.32.8 (Dart ≥ 3.5) recommandé.
+2. `flutter pub get`
+3. `flutter create . --platforms=android`
+4. Vérifiez `android/app/build.gradle` contient `compileSdkVersion 35` (sinon, voir workflow CI ci-dessous).
+5. `flutter build apk --debug`
 
-### Note Android
-- Les plugins ML Kit requièrent **compileSdkVersion 35**. Le workflow CI force cette valeur après la création du dossier `android`.
-
-## CI GitHub Actions (APK auto)
-1. Poussez ce dépôt sur GitHub.
-2. Ouvrez l’onglet **Actions** > lancez le workflow **Android APK**.
-3. Téléchargez l’artefact `alpr-watchlist-debug-apk`.
-
-## iOS (optionnel)
-- Créez les plateformes localement : `flutter create . --platforms=ios`
+## iOS
+- `flutter create . --platforms=ios`
 - Ajoutez dans `ios/Runner/Info.plist` :
   ```
   <key>NSCameraUsageDescription</key>
@@ -36,12 +23,14 @@ Application Flutter (Android + iOS) qui utilise la caméra pour lire des plaques
   ```
 - Build depuis Xcode ou `flutter build ios`.
 
-## Disclaimer
-- Vérifiez la conformité légale (données personnelles) selon votre juridiction.
-- L’OCR est sensible à la lumière, l’angle et l’état de la plaque. Ajustez `kPlatePatterns` si nécessaire.
+## CI GitHub Actions (APK auto)
+- Le workflow `.github/workflows/android.yml` :
+  - utilise Flutter `3.32.8`,
+  - installe Android SDK **35** + build-tools 35.0.0,
+  - patch `compileSdkVersion 35` (+ target 35, min 23),
+  - enlève un éventuel anti-slash parasite en 1re ligne de `lib/plate_matcher.dart`,
+  - build et uploade `app-debug.apk` en artefact.
 
-## Mode flux vidéo + multi-plaques + auto-zoom
-- Le scanner traite ~2 fps en flux vidéo pour de bonnes perfs.
-- Les candidates plaques sont extraites par ligne OCR (regex), avec affichage des cadres.
-- Le zoom s'ajuste automatiquement pour viser ~40% de largeur de cadre pour la plaque médiane détectée (heuristique).
-- Alerte si une ou plusieurs plaques correspondent à la watchlist.
+## Légal
+- Vérifiez la conformité (données personnelles) selon votre juridiction.
+- Adaptez les regex dans `plate_matcher.dart` aux formats cibles si besoin.

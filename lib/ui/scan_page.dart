@@ -29,7 +29,7 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
   double _maxZoom = 1.0;
   double _zoom = 1.0;
 
-  // For overlay
+  // Overlay
   List<Rect> _candidateBoxes = [];
   List<String> _candidateTexts = [];
   Size _lastImageSize = const Size(0, 0);
@@ -94,7 +94,7 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
 
   void _onFrame(CameraImage image) async {
     if (_busy) return;
-    // Throttle to ~2 FPS (500 ms)
+    // Throttle ~2 fps
     if (_throttle == null) {
       _throttle = Timer(const Duration(milliseconds: 500), () => _throttle = null);
     } else if (_throttle!.isActive) {
@@ -103,12 +103,12 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
 
     _busy = true;
     try {
-      // Convert YUV to bytes for ML Kit
-      final WriteBuffer allBytes = WriteBuffer();
-      for (final Plane plane in image.planes) {
-        allBytes.putUint8List(plane.bytes);
+      // YUV planes to bytes
+      final bb = BytesBuilder();
+      for (final Plane p in image.planes) {
+        bb.add(p.bytes);
       }
-      final bytes = allBytes.done().buffer.asUint8List();
+      final bytes = bb.toBytes();
 
       final Size imageSize = Size(image.width.toDouble(), image.height.toDouble());
       _lastImageSize = imageSize;
@@ -132,8 +132,8 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
 
       for (final block in result.blocks) {
         for (final line in block.lines) {
-          final lineText = line.text;
-          final found = extractPlateCandidates(lineText);
+          final t = line.text;
+          final found = extractPlateCandidates(t);
           if (found.isNotEmpty) {
             final bb = line.boundingBox;
             for (final cand in found) {
@@ -147,34 +147,29 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
         }
       }
 
-      // Match against watchlist (multi-plate)
+      // Matches multi-plaques
       final hits = matchAgainstWatchlist(candidates, _watchlist).toSet();
 
-      // Auto-zoom heuristic: if we see any candidate boxes, try to keep typical width around 40% of frame
+      // Auto-zoom: viser ~40% de largeur médiane
       if (boxes.isNotEmpty) {
         final widths = boxes.map((r) => r.width).toList()..sort();
         final medianW = widths[widths.length ~/ 2];
         final frac = medianW / imageSize.width;
         double target = _zoom;
-        if (frac < 0.25) {
-          target = min(_maxZoom, _zoom + 0.2);
-        } else if (frac > 0.60) {
-          target = max(_minZoom, _zoom - 0.2);
-        }
+        if (frac < 0.25) target = min(_maxZoom, _zoom + 0.2);
+        else if (frac > 0.60) target = max(_minZoom, _zoom - 0.2);
         if ((target - _zoom).abs() >= 0.05) {
           _zoom = target;
           try { await _controller?.setZoomLevel(_zoom); } catch (_) {}
         }
       }
 
-      // Update overlay + hits
       setState(() {
         _candidateBoxes = boxes;
         _candidateTexts = texts;
         _currentHits = hits;
       });
 
-      // Haptics on new hits (cooldown 2s)
       if (hits.isNotEmpty) {
         final now = DateTime.now();
         if (now.difference(_lastHaptic).inSeconds >= 2) {
@@ -183,7 +178,6 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
         }
       }
     } catch (_) {
-      // ignore
     } finally {
       _busy = false;
     }
@@ -201,7 +195,6 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
                 return Stack(
                   children: [
                     CameraPreview(cam),
-                    // Overlay plates (basic mapping; may be off if aspect ratios differ)
                     CustomPaint(
                       size: Size.infinite,
                       painter: _PlateOverlayPainter(
@@ -254,14 +247,13 @@ class _PlateOverlayPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     if (imageSize.width == 0 || imageSize.height == 0) return;
 
-    // Simple scale mapping (no rotation compensation):
     final scaleX = previewSize.width / imageSize.width;
     final scaleY = previewSize.height / imageSize.height;
 
     final paint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2.0
-      ..color = const Color(0xFFFFC107); // amber-like (no explicit theme)
+      ..color = const Color(0xFFFFC107);
 
     final textStyle = const TextStyle(color: Colors.white, fontSize: 12);
 
