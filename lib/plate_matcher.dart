@@ -50,7 +50,7 @@
             dp[i - 1][j] + 1,
             dp[i][j - 1] + 1,
             dp[i - 1][j - 1] + cost,
-          ].reduce(min);
+          ].reduce((a, b) => a < b ? a : b);
         }
       }
       return dp[m][n];
@@ -64,7 +64,6 @@
           hits.add(c);
           continue;
         }
-        // tolérance légère
         for (final w in normalizedWatchlist) {
           if ((c.length - w.length).abs() <= 1 && _levenshtein(c, w) <= 1) {
             hits.add(c);

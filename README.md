@@ -19,6 +19,9 @@ Application Flutter (Android + iOS) qui utilise la caméra pour lire des plaques
    ```
    APK: `build/app/outputs/flutter-apk/app-debug.apk`
 
+### Note Android
+- Les plugins ML Kit requièrent **compileSdkVersion 35**. Le workflow CI force cette valeur après la création du dossier `android`.
+
 ## CI GitHub Actions (APK auto)
 1. Poussez ce dépôt sur GitHub.
 2. Ouvrez l’onglet **Actions** > lancez le workflow **Android APK**.

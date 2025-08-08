@@ -18,7 +18,7 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
   CameraController? _controller;
   late final TextRecognizer _recognizer;
   bool _isProcessing = false;
-  Timer? _throttle;
+  Timer? _shotTimer;
   Set<String> _watchlist = {};
   String? _lastHit;
   DateTime _lastHitAt = DateTime.fromMillisecondsSinceEpoch(0);
@@ -34,9 +34,9 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _shotTimer?.cancel();
     _controller?.dispose();
     _recognizer.close();
-    _throttle?.cancel();
     super.dispose();
   }
 
@@ -45,7 +45,7 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
     final cam = _controller;
     if (cam == null || !cam.value.isInitialized) return;
     if (state == AppLifecycleState.inactive) {
-      cam.stopImageStream();
+      _shotTimer?.cancel();
       cam.dispose();
     } else if (state == AppLifecycleState.resumed) {
       _initCamera();
@@ -65,59 +65,25 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
       back,
       ResolutionPreset.medium,
       enableAudio: false,
-      imageFormatGroup: ImageFormatGroup.yuv420,
     );
     await ctrl.initialize();
     await ctrl.setFlashMode(FlashMode.off);
-    await ctrl.startImageStream(_onFrame);
     setState(() => _controller = ctrl);
+
+    // Démarre la capture périodique (1 image / seconde)
+    _shotTimer?.cancel();
+    _shotTimer = Timer.periodic(const Duration(seconds: 1), (_) => _captureAndProcess());
   }
 
-  void _onFrame(CameraImage image) {
+  Future<void> _captureAndProcess() async {
     if (_isProcessing) return;
+    final cam = _controller;
+    if (cam == null || !cam.value.isInitialized) return;
+
     _isProcessing = true;
-
-    // Throttle: 2 fps max
-    _throttle ??= Timer(const Duration(milliseconds: 500), () => _throttle = null);
-    if (_throttle!.isActive) {
-      _isProcessing = false;
-      return;
-    }
-
-    _processImage(image).whenComplete(() => _isProcessing = false);
-  }
-
-  Future<void> _processImage(CameraImage image) async {
     try {
-      final WriteBuffer allBytes = WriteBuffer();
-      for (final Plane plane in image.planes) {
-        allBytes.putUint8List(plane.bytes);
-      }
-      final bytes = allBytes.done().buffer.asUint8List();
-
-      final Size imageSize = Size(image.width.toDouble(), image.height.toDouble());
-
-      final camera = _controller!;
-      final imageRotation = InputImageRotationValue.fromRawValue(camera.description.sensorOrientation) ?? InputImageRotation.rotation0deg;
-      final inputImageFormat = InputImageFormatValue.fromRawValue(image.format.raw) ?? InputImageFormat.nv21;
-
-      final planeData = image.planes.map(
-        (Plane plane) => InputImagePlaneMetadata(
-          bytesPerRow: plane.bytesPerRow,
-          height: plane.height,
-          width: plane.width,
-        ),
-      ).toList();
-
-      final inputImageData = InputImageData(
-        size: imageSize,
-        imageRotation: imageRotation,
-        inputImageFormat: inputImageFormat,
-        planeData: planeData,
-      );
-
-      final inputImage = InputImage.fromBytes(bytes: bytes, inputImageData: inputImageData);
-
+      final shot = await cam.takePicture();
+      final inputImage = InputImage.fromFilePath(shot.path);
       final result = await _recognizer.processImage(inputImage);
 
       final buffer = StringBuffer();
@@ -151,7 +117,9 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
         }
       }
     } catch (e) {
-      // ignore frame errors
+      // ignore
+    } finally {
+      _isProcessing = false;
     }
   }
 
