@@ -1,4 +1,3 @@
-\
     import 'dart:math';
 
     /// Normalisation simple: majuscules, suppression espaces/traits/points.
