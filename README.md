@@ -8,7 +8,7 @@ Application Flutter (Android + iOS) qui utilise la caméra pour lire des plaques
 - `scripts/` : scripts utilitaires (facultatifs)
 
 ## Build local (Android)
-1. Installer Flutter (3.22+), Android SDK.
+1. Installer Flutter (3.32+), Android SDK.
 2. Dans ce dossier :
    ```
    flutter pub get
