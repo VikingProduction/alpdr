@@ -29,7 +29,6 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
   double _maxZoom = 1.0;
   double _zoom = 1.0;
 
-  // Overlay
   List<Rect> _candidateBoxes = [];
   List<String> _candidateTexts = [];
   Size _lastImageSize = const Size(0, 0);
@@ -94,7 +93,6 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
 
   void _onFrame(CameraImage image) async {
     if (_busy) return;
-    // Throttle ~2 fps
     if (_throttle == null) {
       _throttle = Timer(const Duration(milliseconds: 500), () => _throttle = null);
     } else if (_throttle!.isActive) {
@@ -103,7 +101,6 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
 
     _busy = true;
     try {
-      // YUV planes to bytes
       final bb = BytesBuilder();
       for (final Plane p in image.planes) {
         bb.add(p.bytes);
@@ -147,10 +144,8 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
         }
       }
 
-      // Matches multi-plaques
       final hits = matchAgainstWatchlist(candidates, _watchlist).toSet();
 
-      // Auto-zoom: viser ~40% de largeur médiane
       if (boxes.isNotEmpty) {
         final widths = boxes.map((r) => r.width).toList()..sort();
         final medianW = widths[widths.length ~/ 2];
@@ -259,7 +254,7 @@ class _PlateOverlayPainter extends CustomPainter {
 
     for (int i = 0; i < boxes.length; i++) {
       final r = boxes[i];
-      final mapped = Rect.fromLTWH(r.left * scaleX, r.top * scaleY, r.width * scaleX, r.height * scaleY);
+      final mapped = Rect.fromLTRB(r.left * scaleX, r.top * scaleY, r.right * scaleX, r.bottom * scaleY);
       canvas.drawRect(mapped, paint);
 
       final tp = TextPainter(
