@@ -1,0 +1,45 @@
+name: Android APK
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+jobs:
+  build-debug:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.22.2'
+          channel: 'stable'
+
+      - name: Flutter version
+        run: flutter --version
+
+      - name: Pub get
+        run: flutter pub get
+
+      - name: Create Android platform (if missing)
+        run: flutter create . --platforms=android
+
+      - name: Ensure camera permission in AndroidManifest
+        run: |
+          MANIFEST="android/app/src/main/AndroidManifest.xml"
+          if [ -f "$MANIFEST" ]; then
+            # Insert uses-permission/feature before <application> if not already present
+            if ! grep -q 'android.permission.CAMERA' "$MANIFEST"; then
+              sed -i '/<application/ i \    <uses-permission android:name="android.permission.CAMERA" />\n    <uses-feature android:name="android.hardware.camera" />\n    <uses-feature android:name="android.hardware.camera.autofocus" />' "$MANIFEST"
+            fi
+          fi
+
+      - name: Build debug APK
+        run: flutter build apk --debug
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: alpr-watchlist-debug-apk
+          path: build/app/outputs/flutter-apk/app-debug.apk
