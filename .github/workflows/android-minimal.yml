@@ -1,0 +1,183 @@
+name: Android APK Ultra Minimal (Test de Base)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+jobs:
+  build-debug:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Setup Java 17
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'zulu'
+        java-version: '17'
+
+    - name: Setup Flutter
+      uses: subosito/flutter-action@v2
+      with:
+        flutter-version: '3.27.4'
+        channel: 'stable'
+        cache: true
+
+    - name: Backup existing files
+      run: |
+        echo "📋 Sauvegarde des fichiers existants..."
+        [ -f pubspec.yaml ] && cp pubspec.yaml pubspec.yaml.original
+        [ -d lib ] && cp -r lib lib.original
+
+    - name: Create minimal placeholder HERE SDK
+      run: |
+        echo "🔧 Création plugin HERE SDK ultra-minimal..."
+
+        mkdir -p plugins/here_sdk/lib
+
+        # pubspec.yaml minimal
+        cat > plugins/here_sdk/pubspec.yaml << 'EOF'
+        name: here_sdk
+        description: HERE SDK Placeholder
+        version: 4.22.0
+
+        environment:
+          sdk: ">=2.17.0 <4.0.0"
+
+        dependencies:
+          flutter:
+            sdk: flutter
+        EOF
+
+        # Seul fichier Dart nécessaire
+        cat > plugins/here_sdk/lib/here_sdk.dart << 'EOF'
+        // HERE SDK Placeholder ultra-minimal
+        class HereSDK {
+          static void init() => print('HERE SDK placeholder');
+        }
+        EOF
+
+    - name: Create temporary minimal app structure
+      run: |
+        echo "🏗️ Création structure app temporaire..."
+
+        # Créer des pages placeholder pour éviter les erreurs d'import
+        mkdir -p lib/ui lib/services lib/models lib/config
+
+        # Pages placeholder
+        cat > lib/ui/scan_page.dart << 'EOF'
+        import 'package:flutter/material.dart';
+
+        class ScanPage extends StatelessWidget {
+          const ScanPage({super.key});
+
+          @override
+          Widget build(BuildContext context) {
+            return const Center(
+              child: Text('Scanner Page - En développement'),
+            );
+          }
+        }
+        EOF
+
+        cat > lib/ui/watchlist_page.dart << 'EOF'
+        import 'package:flutter/material.dart';
+
+        class WatchlistPage extends StatelessWidget {
+          const WatchlistPage({super.key});
+
+          @override
+          Widget build(BuildContext context) {
+            return const Center(
+              child: Text('Watchlist Page - En développement'),
+            );
+          }
+        }
+        EOF
+
+        cat > lib/ui/navigation_page.dart << 'EOF'
+        import 'package:flutter/material.dart';
+
+        class NavigationPage extends StatelessWidget {
+          const NavigationPage({super.key});
+
+          @override
+          Widget build(BuildContext context) {
+            return const Center(
+              child: Text('Navigation Page - HERE SDK requis'),
+            );
+          }
+        }
+        EOF
+
+    - name: Create ultra-minimal pubspec.yaml
+      run: |
+        echo "📄 Création pubspec.yaml ultra-minimal..."
+
+        cat > pubspec.yaml << 'EOF'
+        name: alpr_watchlist
+        description: ALPR with HERE Maps
+        publish_to: 'none'
+        version: 1.0.0+1
+
+        environment:
+          sdk: '>=3.5.0 <4.0.0'
+
+        dependencies:
+          flutter:
+            sdk: flutter
+
+          # Plugin HERE SDK placeholder
+          here_sdk:
+            path: plugins/here_sdk
+
+          # Permissions uniquement
+          permission_handler: ^11.0.0
+
+          # UI de base
+          cupertino_icons: ^1.0.5
+
+        dev_dependencies:
+          flutter_test:
+            sdk: flutter
+          flutter_lints: ^4.0.0
+
+        flutter:
+          uses-material-design: true
+          assets:
+            - assets/
+        EOF
+
+    - name: Clean and get dependencies
+      run: |
+        echo "🧹 Nettoyage et installation..."
+        flutter clean
+        flutter pub cache repair
+        flutter pub get --verbose
+
+    - name: Build minimal APK
+      run: |
+        echo "🔨 Build APK minimal..."
+        flutter build apk --debug --verbose
+
+    - name: Test success
+      run: |
+        echo "🎉 TEST MINIMAL RÉUSSI!"
+        echo "========================"
+        echo "✅ Structure de base fonctionne"
+        echo "✅ Plugin HERE SDK placeholder OK"
+        echo "✅ Build APK réussi"
+        echo ""
+        echo "PROCHAINES ÉTAPES:"
+        echo "1. Ajouter progressivement les vraies dépendances"
+        echo "2. Implémenter les vraies pages UI"
+        echo "3. Intégrer le vrai HERE SDK"
+
+    - name: Upload minimal APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: alpr-minimal-test
+        path: build/app/outputs/flutter-apk/app-debug.apk
