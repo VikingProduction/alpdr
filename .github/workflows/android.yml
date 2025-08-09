@@ -1,4 +1,4 @@
-name: Android APK
+name: Android APK with HERE Maps
 
 on:
   workflow_dispatch:
@@ -28,6 +28,19 @@ jobs:
       - name: Show Flutter version
         run: flutter --version
 
+      - name: Configure HERE API Key
+        run: |
+          mkdir -p lib/config
+          cat > lib/config/here_config.dart << EOF
+          class HereConfig {
+            static const String apiKey = '${{ secrets.HERE_API_KEY }}';
+            static const double radarAlertDistance = 1000.0;
+            static const double speedTolerance = 5.0;
+            static const bool offlineMapsEnabled = true;
+            static const String voiceLanguage = 'fr-FR';
+          }
+          EOF
+
       - name: Pub get
         run: flutter pub get
 
@@ -42,12 +55,13 @@ jobs:
             fi
           fi
 
-      - name: Ensure camera permission in AndroidManifest
+      - name: Configure HERE SDK in AndroidManifest
         run: |
           MANIFEST="android/app/src/main/AndroidManifest.xml"
           if [ -f "$MANIFEST" ]; then
-            if ! grep -q 'android.permission.CAMERA' "$MANIFEST"; then
-              sed -i '/<application/ i \    <uses-permission android:name="android.permission.CAMERA" />\n    <uses-feature android:name="android.hardware.camera" />\n    <uses-feature android:name="android.hardware.camera.autofocus" />' "$MANIFEST"
+            # Permissions HERE + Camera
+            if ! grep -q 'android.permission.ACCESS_FINE_LOCATION' "$MANIFEST"; then
+              sed -i '/<application/ i \    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />\n    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />\n    <uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="android.permission.CAMERA" />\n    <uses-feature android:name="android.hardware.camera" />\n    <uses-feature android:name="android.hardware.camera.autofocus" />' "$MANIFEST"
             fi
           fi
 
@@ -57,5 +71,5 @@ jobs:
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: alpr-watchlist-debug-apk
+          name: alpr-navigation-debug-apk
           path: build/app/outputs/flutter-apk/app-debug.apk
