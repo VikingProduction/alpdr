@@ -8,14 +8,17 @@ on:
 jobs:
   build-debug:
     runs-on: ubuntu-latest
-    env:
-      ANDROID_SDK_ROOT: ${{ github.workspace }}/android-sdk
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Install Flutter 3.32.8 / Dart >= 3.5.0
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
@@ -25,35 +28,20 @@ jobs:
       - name: Show Flutter version
         run: flutter --version
 
-      # Install Android SDK command line tools
-      - name: Install Android SDK command line tools
-        run: |
-          mkdir -p $ANDROID_SDK_ROOT/cmdline-tools
-          curl -o commandlinetools.zip https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip
-          unzip -q commandlinetools.zip -d $ANDROID_SDK_ROOT/cmdline-tools
-          mkdir -p $ANDROID_SDK_ROOT/cmdline-tools/latest
-          mv $ANDROID_SDK_ROOT/cmdline-tools/cmdline-tools $ANDROID_SDK_ROOT/cmdline-tools/latest
-          export PATH=$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$PATH
-          yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --licenses
-
-      # Install NDK 27.0.12077973
-      - name: Install Android NDK 27
-        env:
-          ANDROID_SDK_ROOT: ${{ env.ANDROID_SDK_ROOT }}
-          PATH: ${{ env.ANDROID_SDK_ROOT }}/cmdline-tools/latest/bin:${{ env.PATH }}
-        run: |
-          $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager "ndk;27.0.12077973"
-          ls $ANDROID_SDK_ROOT/ndk
-
-      # Retrieve Flutter dependencies
       - name: Pub get
         run: flutter pub get
 
-      # Create Android platform if missing
       - name: Create Android platform (if missing)
         run: flutter create . --platforms=android
 
-      # Ensure camera permissions in AndroidManifest
+      - name: Configure NDK version in build.gradle
+        run: |
+          if [ -f "android/app/build.gradle" ]; then
+            if ! grep -q "ndkVersion" android/app/build.gradle; then
+              sed -i '/android {/a\    ndkVersion "27.0.12077973"' android/app/build.gradle
+            fi
+          fi
+
       - name: Ensure camera permission in AndroidManifest
         run: |
           MANIFEST="android/app/src/main/AndroidManifest.xml"
@@ -63,11 +51,9 @@ jobs:
             fi
           fi
 
-      # Build debug APK (NDK version detected automatically)
       - name: Build debug APK
         run: flutter build apk --debug
 
-      # Upload debug APK as artifact
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
