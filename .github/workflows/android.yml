@@ -25,6 +25,13 @@ jobs:
           flutter-version: '3.32.8'
           channel: 'stable'
 
+      - name: Download HERE SDK
+        run: |
+          chmod +x scripts/download_here_sdk.sh
+          ./scripts/download_here_sdk.sh
+        env:
+          HERE_DOWNLOAD_TOKEN: ${{ secrets.HERE_DOWNLOAD_TOKEN }}
+
       - name: Configure HERE API credentials
         run: |
           mkdir -p lib/config
@@ -37,40 +44,11 @@ jobs:
             static const double speedTolerance = 5.0;
             static const bool offlineMapsEnabled = true;
             static const String voiceLanguage = 'fr-FR';
-            
-            static String get geocodingUrl => 
-              'https://geocode.search.hereapi.com/v1/geocode?apikey=\$apiKey';
-              
-            static String get routingUrl => 
-              'https://router.hereapi.com/v8/routes?apikey=\$apiKey';
-              
-            static String get safetyUrl => 
-              'https://fleet.ls.hereapi.com/2/search/proximity.json?apikey=\$apiKey';
           }
           EOF
 
       - name: Pub get
         run: flutter pub get
-
-      - name: Create Android platform (if missing)
-        run: flutter create . --platforms=android
-
-      - name: Configure Android build
-        run: |
-          # NDK Version
-          if [ -f "android/app/build.gradle" ]; then
-            if ! grep -q "ndkVersion" android/app/build.gradle; then
-              sed -i '/android {/a\    ndkVersion "27.0.12077973"' android/app/build.gradle
-            fi
-          fi
-          
-          # Permissions AndroidManifest
-          MANIFEST="android/app/src/main/AndroidManifest.xml"
-          if [ -f "$MANIFEST" ]; then
-            if ! grep -q 'android.permission.ACCESS_FINE_LOCATION' "$MANIFEST"; then
-              sed -i '/<application/ i \    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />\n    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />\n    <uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="android.permission.CAMERA" />\n    <uses-feature android:name="android.hardware.camera" />\n    <uses-feature android:name="android.hardware.camera.autofocus" />\n    <uses-feature android:name="android.hardware.location" />' "$MANIFEST"
-            fi
-          fi
 
       - name: Build debug APK
         run: flutter build apk --debug
