@@ -26,8 +26,11 @@ class HereNavigationService {
     if (_isInitialized) return;
     
     try {
-      // Initialiser HERE SDK
-      await SDKOptions.withApiKey(HereConfig.apiKey);
+      // Initialiser HERE SDK avec API Key ET App ID
+      await SDKOptions.withApiKeyAndAppId(
+        HereConfig.apiKey, 
+        HereConfig.appId,
+      );
       
       _routingEngine = RoutingEngine();
       _visualNavigator = VisualNavigator();
@@ -35,21 +38,30 @@ class HereNavigationService {
       _locationController = StreamController<GeoCoordinates>.broadcast();
       _instructionController = StreamController<String>.broadcast();
       
-      // Configuration des callbacks navigation
       _setupNavigationCallbacks();
       
       _isInitialized = true;
-      debugPrint('HERE Navigation Service initialisé');
+      debugPrint('HERE Navigation Service initialisé avec App ID: ${HereConfig.appId}');
       
     } catch (e) {
       debugPrint('Erreur initialisation HERE SDK: $e');
-      rethrow;
+      
+      // Fallback : essayer avec seulement API Key
+      try {
+        await SDKOptions.withApiKey(HereConfig.apiKey);
+        _routingEngine = RoutingEngine();
+        _visualNavigator = VisualNavigator();
+        _isInitialized = true;
+        debugPrint('HERE SDK initialisé avec API Key seulement');
+      } catch (e2) {
+        debugPrint('Erreur fallback HERE SDK: $e2');
+        rethrow;
+      }
     }
   }
 
   void _setupNavigationCallbacks() {
     _visualNavigator.routeProgressListener = (RouteProgress progress) {
-      // Emission de la position courante
       if (progress.currentLocation != null) {
         _locationController?.add(progress.currentLocation!);
       }
@@ -58,13 +70,20 @@ class HereNavigationService {
     _visualNavigator.maneuverNotificationListener = (String instruction) {
       _instructionController?.add(instruction);
     };
+    
+    _visualNavigator.routeDeviationListener = (RouteDeviation deviation) {
+      debugPrint('Déviation détectée: ${deviation.currentLocation}');
+    };
   }
 
+  // Reste du code identique...
   Future<Route?> calculateRoute(GeoCoordinates destination) async {
     if (!_isInitialized) await initialize();
     
     try {
-      final position = await Geolocator.getCurrentPosition();
+      final position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
       final start = GeoCoordinates(position.latitude, position.longitude);
       
       final waypoints = [
@@ -72,14 +91,20 @@ class HereNavigationService {
         Waypoint.withDefaults(destination),
       ];
 
+      // Configuration route avec options avancées
+      final carOptions = CarOptions();
+      carOptions.routeOptions.enableTolls = false; // Éviter péages
+      carOptions.routeOptions.enableTrafficOptimization = true;
+      
       final routingCompleter = Completer<Route?>();
       
-      _routingEngine.calculateRoute(waypoints, CarOptions(), (error, routes) {
+      _routingEngine.calculateRoute(waypoints, carOptions, (error, routes) {
         if (error != null) {
           debugPrint('Erreur calcul route: $error');
           routingCompleter.complete(null);
         } else if (routes != null && routes.isNotEmpty) {
           _currentRoute = routes.first;
+          debugPrint('Route calculée: ${routes.first.lengthInMeters}m');
           routingCompleter.complete(routes.first);
         } else {
           routingCompleter.complete(null);
@@ -94,6 +119,7 @@ class HereNavigationService {
     }
   }
 
+  // Reste des méthodes identique...
   Future<void> startNavigation(Route route) async {
     if (!_isInitialized) return;
     
@@ -101,7 +127,7 @@ class HereNavigationService {
       _currentRoute = route;
       _visualNavigator.route = route;
       await _visualNavigator.startNavigation();
-      debugPrint('Navigation démarrée');
+      debugPrint('Navigation démarrée pour ${route.lengthInMeters}m');
     } catch (e) {
       debugPrint('Erreur démarrage navigation: $e');
     }
