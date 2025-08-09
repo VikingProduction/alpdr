@@ -1,4 +1,5 @@
 name: Android APK
+
 on:
   workflow_dispatch:
   push:
@@ -7,13 +8,15 @@ on:
 jobs:
   build-debug:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.22.2'
+          flutter-version: '3.32.8'   # Version compatible Dart >=3.5.0
           channel: 'stable'
 
       - name: Flutter version
@@ -29,7 +32,7 @@ jobs:
         run: |
           MANIFEST="android/app/src/main/AndroidManifest.xml"
           if [ -f "$MANIFEST" ]; then
-            # Insert uses-permission/feature before <application> if not already present
+            # Ajout des permissions si absentes
             if ! grep -q 'android.permission.CAMERA' "$MANIFEST"; then
               sed -i '/<application/ i \    <uses-permission android:name="android.permission.CAMERA" />\n    <uses-feature android:name="android.hardware.camera" />\n    <uses-feature android:name="android.hardware.camera.autofocus" />' "$MANIFEST"
             fi
