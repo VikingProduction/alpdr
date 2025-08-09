@@ -1,4 +1,4 @@
-name: Android APK with HERE Maps (SDK Real Download)
+name: Android APK with HERE Maps (Simplifié - Sans Icônes)
 
 on:
   workflow_dispatch:
@@ -22,7 +22,7 @@ jobs:
     - name: Setup Flutter
       uses: subosito/flutter-action@v2
       with:
-        flutter-version: '3.27.4'  # Compatible avec HERE SDK 4.22.0
+        flutter-version: '3.27.4'
         channel: 'stable'
         cache: true
 
@@ -34,6 +34,7 @@ jobs:
         curl -L -o here_sdk_ref_app.zip           "https://github.com/heremaps/here-sdk-ref-app-flutter/archive/refs/tags/1.14.0.zip"
 
         # Extraire l'archive
+        echo "📂 Extraction de l'archive..."
         unzip -q here_sdk_ref_app.zip
 
         # Trouver le dossier extrait
@@ -46,67 +47,51 @@ jobs:
 
         echo "✅ Code source extrait: $EXTRACTED_FOLDER"
 
-        # Lister le contenu pour debug
-        echo "📋 Contenu du dossier extrait:"
+        # Analyser le contenu pour debug
+        echo "📋 Contenu principal du dossier:"
         ls -la "$EXTRACTED_FOLDER/"
 
-        # Vérifier si le dossier plugins existe
+        # Vérifier ce qui est dans plugins
         if [ -d "$EXTRACTED_FOLDER/plugins" ]; then
-          echo "📁 Dossier plugins trouvé:"
+          echo "📁 Contenu du dossier plugins:"
           ls -la "$EXTRACTED_FOLDER/plugins/"
+
+          # Vérifier si here_sdk existe déjà
+          if [ -d "$EXTRACTED_FOLDER/plugins/here_sdk" ]; then
+            echo "🎉 Plugin HERE SDK trouvé dans le code source!"
+            ls -la "$EXTRACTED_FOLDER/plugins/here_sdk/"
+          else
+            echo "⚠️ Plugin HERE SDK non trouvé dans plugins/"
+          fi
         else
-          echo "⚠️ Dossier plugins non trouvé"
+          echo "❌ Dossier plugins non trouvé"
         fi
 
-    - name: Setup submodules (HERE Icons)
+    - name: Create HERE SDK plugin structure
       run: |
-        echo "🔧 Configuration des submodules HERE Icons..."
+        echo "🔧 Configuration du plugin HERE SDK..."
 
         EXTRACTED_FOLDER=$(find . -name "here-sdk-ref-app-flutter-*" -type d | head -n 1)
 
-        # Copier le script de mise à jour des submodules
-        if [ -f "$EXTRACTED_FOLDER/update_submodules.sh" ]; then
-          cp "$EXTRACTED_FOLDER/update_submodules.sh" ./
-          chmod +x update_submodules.sh
-        fi
+        # Créer le dossier plugins s'il n'existe pas
+        mkdir -p plugins
 
-        # Copier le fichier .gitmodules
-        if [ -f "$EXTRACTED_FOLDER/.gitmodules" ]; then
-          cp "$EXTRACTED_FOLDER/.gitmodules" ./
-        fi
+        # Vérifier si le plugin existe dans les sources téléchargées
+        if [ -d "$EXTRACTED_FOLDER/plugins/here_sdk" ]; then
+          echo "✅ Copie du plugin HERE SDK depuis les sources..."
+          cp -r "$EXTRACTED_FOLDER/plugins/here_sdk" plugins/
+        else
+          echo "🔧 Création d'un plugin HERE SDK placeholder..."
 
-        # Initialiser le submodule HERE Icons manuellement
-        mkdir -p assets/here-icons
+          # Créer la structure du plugin placeholder
+          mkdir -p plugins/here_sdk/lib/src
+          mkdir -p plugins/here_sdk/android/src/main/kotlin/com/here/sdk
+          mkdir -p plugins/here_sdk/ios/Classes
 
-        echo "📦 Téléchargement des icônes HERE..."
-        # Télécharger les icônes HERE depuis leur repository
-        curl -L -o here-icons.zip           "https://github.com/heremaps/here-icons/archive/refs/heads/main.zip"
-
-        unzip -q here-icons.zip
-
-        # Copier les icônes
-        ICONS_FOLDER=$(find . -name "here-icons-*" -type d | head -n 1)
-        if [ -n "$ICONS_FOLDER" ]; then
-          cp -r "$ICONS_FOLDER"/* assets/here-icons/
-          echo "✅ Icônes HERE copiées"
-        fi
-
-    - name: Create placeholder HERE SDK plugin  
-      run: |
-        echo "🔧 Création du plugin HERE SDK placeholder..."
-
-        # Le repository de référence ne contient PAS le plugin HERE SDK compilé
-        # Il faut le télécharger depuis developer.here.com
-        # En attendant, créons un plugin fonctionnel minimal
-
-        mkdir -p plugins/here_sdk/lib
-        mkdir -p plugins/here_sdk/android/src/main/kotlin/com/here/sdk
-        mkdir -p plugins/here_sdk/ios/Classes
-
-        # Créer pubspec.yaml pour le plugin
-        cat > plugins/here_sdk/pubspec.yaml << 'EOF'
+          # Créer pubspec.yaml
+          cat > plugins/here_sdk/pubspec.yaml << 'EOF'
         name: here_sdk
-        description: HERE SDK for Flutter (Placeholder - Real SDK needed from developer.here.com)
+        description: HERE SDK for Flutter (Placeholder)
         version: 4.22.0
 
         environment:
@@ -127,11 +112,8 @@ jobs:
             sdk: flutter
         EOF
 
-        # Créer le fichier Dart principal avec les classes nécessaires
-        cat > plugins/here_sdk/lib/here_sdk.dart << 'EOF'
-        // HERE SDK Flutter Plugin (Placeholder)
-        // Le vrai plugin doit être téléchargé depuis developer.here.com
-
+          # Créer les fichiers Dart de base
+          cat > plugins/here_sdk/lib/here_sdk.dart << 'EOF'
         library here_sdk;
 
         export 'src/sdk_context.dart';
@@ -142,51 +124,41 @@ jobs:
           static const String version = '4.22.0-placeholder';
 
           static Future<void> initializeSDK() async {
-            print('HERE SDK Placeholder - Version: $version');
-            print('❗ ATTENTION: Ceci est un placeholder!');
-            print('📥 Téléchargez le vrai HERE SDK depuis developer.here.com');
+            print('HERE SDK Placeholder initialisé');
           }
         }
         EOF
 
-        # Créer les fichiers sources nécessaires
-        mkdir -p plugins/here_sdk/lib/src
-
-        # SDK Context
-        cat > plugins/here_sdk/lib/src/sdk_context.dart << 'EOF'
+          cat > plugins/here_sdk/lib/src/sdk_context.dart << 'EOF'
         enum IsolateOrigin { main }
 
         class SdkContext {
           static void init(IsolateOrigin origin) {
-            print('SdkContext.init placeholder called');
+            print('SdkContext.init placeholder');
           }
         }
         EOF
 
-        # Core classes
-        cat > plugins/here_sdk/lib/src/core.dart << 'EOF'
+          cat > plugins/here_sdk/lib/src/core.dart << 'EOF'
         class GeoCoordinates {
           final double latitude;
           final double longitude;
-
           const GeoCoordinates(this.latitude, this.longitude);
         }
 
         abstract class InstantiationException implements Exception {
           static void checkPluginInstallation() {
-            print('⚠️ Plugin HERE SDK placeholder - téléchargez le vrai depuis developer.here.com');
+            print('HERE SDK placeholder actif');
           }
         }
         EOF
 
-        # MapView
-        cat > plugins/here_sdk/lib/src/mapview.dart << 'EOF'
+          cat > plugins/here_sdk/lib/src/mapview.dart << 'EOF'
         import 'package:flutter/widgets.dart';
         import 'package:flutter/material.dart';
 
         class HereMap extends StatefulWidget {
           final Function(HereMapController)? onMapCreated;
-
           const HereMap({Key? key, this.onMapCreated}) : super(key: key);
 
           @override
@@ -197,11 +169,8 @@ jobs:
           @override
           void initState() {
             super.initState();
-            // Simuler la création du contrôleur
             WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (widget.onMapCreated != null) {
-                widget.onMapCreated!(HereMapController());
-              }
+              widget.onMapCreated?.call(HereMapController());
             });
           }
 
@@ -211,33 +180,15 @@ jobs:
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: [Colors.blue[100]!, Colors.blue[300]!],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
                 ),
               ),
               child: Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.map, size: 64, color: Colors.blue[800]),
-                    SizedBox(height: 16),
-                    Text(
-                      'HERE Map Placeholder',
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.blue[800],
-                      ),
-                    ),
-                    SizedBox(height: 8),
-                    Text(
-                      'Téléchargez le vrai plugin\ndepuis developer.here.com',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: Colors.blue[600],
-                      ),
-                    ),
+                    Icon(Icons.map, size: 64),
+                    Text('HERE Map Placeholder'),
+                    Text('Plugin placeholder actif'),
                   ],
                 ),
               ),
@@ -246,132 +197,51 @@ jobs:
         }
 
         class HereMapController {
-          void camera = null;
-
-          // Méthodes placeholder
-          void addMapObject(dynamic mapObject) {
-            print('HereMapController.addMapObject placeholder');
-          }
-
-          void removeMapObject(dynamic mapObject) {
-            print('HereMapController.removeMapObject placeholder');
-          }
+          void addMapObject(dynamic obj) => print('addMapObject placeholder');
+          void removeMapObject(dynamic obj) => print('removeMapObject placeholder');
         }
         EOF
+        fi
 
-        echo "✅ Plugin HERE SDK placeholder créé avec succès"
+        echo "✅ Plugin HERE SDK configuré"
 
-    - name: Copy reference app structure and assets
+    - name: Copy assets from reference app
       run: |
-        echo "📋 Copie de la structure de l'application de référence..."
+        echo "📁 Copie des assets depuis l'app de référence..."
 
         EXTRACTED_FOLDER=$(find . -name "here-sdk-ref-app-flutter-*" -type d | head -n 1)
 
-        # Copier les assets nécessaires (sauf les icônes already done)
+        # Créer le dossier assets s'il n'existe pas
+        mkdir -p assets
+
+        # Copier les assets de base (hors icônes HERE)
         if [ -d "$EXTRACTED_FOLDER/assets" ]; then
-          cp -r "$EXTRACTED_FOLDER/assets"/* assets/ 2>/dev/null || true
+          # Copier les fichiers assets de base, en excluant here-icons
+          find "$EXTRACTED_FOLDER/assets" -type f \
+            ! -path "*/here-icons/*" \
+            -exec cp {} assets/ \; 2>/dev/null || true
+
+          echo "✅ Assets de base copiés (hors icônes HERE)"
         fi
 
-        # Copier les configurations Android si nécessaire
-        if [ -d "$EXTRACTED_FOLDER/android" ]; then
-          echo "📱 Copie des configurations Android..."
-          # Ne pas écraser complètement, juste prendre des éléments
-          cp -r "$EXTRACTED_FOLDER/android/app/src/main/res"/* android/app/src/main/res/ 2>/dev/null || true
-        fi
-
-    - name: Configure HERE API credentials
+    - name: Configure HERE credentials
       run: |
         mkdir -p lib/config
         cat > lib/config/here_config.dart << 'EOF'
         class HereConfig {
-          // Credentials placeholder - remplacez par vos vraies credentials HERE Platform
-          static const String accessKeyId = 'YOUR_ACCESS_KEY_ID_HERE';
-          static const String accessKeySecret = 'YOUR_ACCESS_KEY_SECRET_HERE';
+          static const String accessKeyId = 'YOUR_ACCESS_KEY_ID';
+          static const String accessKeySecret = 'YOUR_ACCESS_KEY_SECRET';
 
-          // Configuration de l'application
           static const double radarAlertDistance = 1000.0;
           static const double speedTolerance = 5.0;
           static const bool offlineMapsEnabled = true;
           static const String voiceLanguage = 'fr-FR';
 
           static Future<void> initializeHereSDK() async {
-            print('HERE Config initialized - Placeholder mode');
-            print('❗ Configurez vos vraies credentials HERE Platform');
-            print('📋 Ajoutez HERE_API_KEY et HERE_APP_ID aux GitHub Secrets');
+            print('HERE Config initialisé - mode placeholder');
           }
         }
         EOF
-
-    - name: Update pubspec.yaml to match reference app
-      run: |
-        echo "📝 Mise à jour du pubspec.yaml..."
-
-        # Sauvegarder l'ancien pubspec
-        cp pubspec.yaml pubspec.yaml.backup
-
-        # Créer un nouveau pubspec basé sur l'app de référence mais adapté
-        cat > pubspec.yaml << 'EOF'
-        name: alpr_watchlist
-        description: Scan plaques d'immatriculation (OCR) + navigation HERE Maps
-        publish_to: 'none'
-        version: 1.0.0+1
-
-        environment:
-          sdk: '>=3.5.0 <4.0.0'
-          flutter: '>=3.27.4'
-
-        dependencies:
-          flutter:
-            sdk: flutter
-          flutter_localizations:
-            sdk: flutter
-
-          # HERE SDK depuis plugins local (placeholder pour l'instant)
-          here_sdk:
-            path: plugins/here_sdk
-
-          # ALPR existant
-          camera: ^0.11.0
-          google_mlkit_text_recognition: ^0.15.0
-          shared_preferences: ^2.3.4
-
-          # Navigation et localisation
-          geolocator: ^10.1.0
-          permission_handler: ^11.0.0
-          awesome_notifications: ^0.8.2
-          http: ^1.1.0
-
-          # UI/UX
-          flutter_map: ^6.1.0  # Backup si HERE pose problème
-          latlong2: ^0.8.1
-          cupertino_icons: ^1.0.5
-
-          # Dépendances de la ref app HERE (si nécessaires)
-          battery_plus: ^6.0.0
-          connectivity_plus: ^6.0.0
-          device_info_plus: ^11.0.0
-          path_provider: ^2.0.0
-          intl: ^0.19.0
-
-        dev_dependencies:
-          flutter_test:
-            sdk: flutter
-          flutter_lints: ^4.0.0
-
-        flutter:
-          uses-material-design: true
-          generate: true
-
-          assets:
-            - assets/
-            - assets/sounds/
-            - assets/here-icons/icons/guidance-icons/manoeuvers-sdk/
-            - assets/here-icons/icons/core-ui/SVG/menu_solid_24px.svg
-            - assets/here-icons/icons/core-ui/SVG/chevron-right_solid_24px.svg
-            - assets/here-icons/icons/core-ui/SVG/inbox-attention_solid_24px.svg
-        EOF
-
-        echo "✅ pubspec.yaml mis à jour"
 
     - name: Get Flutter dependencies
       run: |
@@ -380,39 +250,29 @@ jobs:
 
     - name: Analyze Flutter code
       run: |
-        echo "🔍 Analyse du code Flutter..."
-        flutter analyze --no-fatal-infos || echo "⚠️ Warnings détectés mais build continue"
+        echo "🔍 Analyse du code..."
+        flutter analyze --no-fatal-infos || echo "⚠️ Warnings détectés"
 
     - name: Build debug APK
       run: |
-        echo "🔨 Build de l'APK debug..."
+        echo "🔨 Build de l'APK..."
         flutter build apk --debug --verbose
 
-    - name: Display success message and next steps
+    - name: Success message
       run: |
-        echo "🎉 BUILD RÉUSSI AVEC PLACEHOLDER HERE SDK!"
-        echo "============================================="
+        echo "🎉 BUILD RÉUSSI!"
+        echo "================================"
+        echo "✅ APK généré avec succès"
+        echo "✅ Plugin HERE SDK configuré (placeholder)"
         echo ""
-        echo "✅ L'application ALPR a été buildée avec succès"
-        echo "✅ Plugin HERE SDK placeholder installé"
-        echo "✅ Structure de l'app de référence intégrée"
-        echo ""
-        echo "📋 PROCHAINES ÉTAPES POUR INTÉGRER LE VRAI HERE SDK:"
-        echo "---------------------------------------------------"
-        echo "1. 🔐 Créez un compte HERE Platform: developer.here.com"
-        echo "2. 📥 Téléchargez 'HERE SDK for Flutter (Navigate Edition)'"
-        echo "3. 📦 Dans le package téléchargé, trouvez le fichier TAR"
-        echo "4. 📁 Extrayez le TAR et renommez le dossier en 'here_sdk'"
-        echo "5. 🔄 Remplacez plugins/here_sdk/ par le vrai plugin"
-        echo "6. 🔑 Configurez vos credentials HERE dans GitHub Secrets:"
-        echo "   - HERE_API_KEY: votre Access Key ID"
-        echo "   - HERE_APP_ID: votre Access Key Secret"
-        echo "7. ♻️ Relancez le build - il utilisera le vrai SDK!"
-        echo ""
-        echo "📖 Documentation complète: ${{ github.server_url }}/${{ github.repository }}"
+        echo "📋 POUR UTILISER LE VRAI HERE SDK:"
+        echo "1. Téléchargez le depuis developer.here.com"
+        echo "2. Remplacez plugins/here_sdk/ par le vrai plugin"
+        echo "3. Configurez vos credentials"
+        echo "4. Relancez le build"
 
     - name: Upload debug APK
       uses: actions/upload-artifact@v4
       with:
-        name: alpr-navigation-debug-apk-with-here-placeholder
+        name: alpr-here-sdk-debug
         path: build/app/outputs/flutter-apk/app-debug.apk
