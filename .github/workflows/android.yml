@@ -13,34 +13,47 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # Setup Flutter dans la bonne version
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.32.8'   # Version compatible Dart >=3.5.0
+          flutter-version: '3.32.8'  # Dart >= 3.5.0
           channel: 'stable'
 
       - name: Flutter version
         run: flutter --version
 
+      # Installation NDK 27
+      - name: Install Android NDK 27
+        run: |
+          yes | sdkmanager --install "ndk;27.0.12077973"
+          sdkmanager --list | grep ndk || true
+
+      # Récupération des dépendances
       - name: Pub get
         run: flutter pub get
 
+      # Création de la plateforme Android si manquante
       - name: Create Android platform (if missing)
         run: flutter create . --platforms=android
 
+      # Ajout des permissions caméra si absentes
       - name: Ensure camera permission in AndroidManifest
         run: |
           MANIFEST="android/app/src/main/AndroidManifest.xml"
           if [ -f "$MANIFEST" ]; then
-            # Ajout des permissions si absentes
             if ! grep -q 'android.permission.CAMERA' "$MANIFEST"; then
               sed -i '/<application/ i \    <uses-permission android:name="android.permission.CAMERA" />\n    <uses-feature android:name="android.hardware.camera" />\n    <uses-feature android:name="android.hardware.camera.autofocus" />' "$MANIFEST"
             fi
           fi
 
+      # Build de l'APK debug avec le NDK 27 défini
       - name: Build debug APK
         run: flutter build apk --debug
+        env:
+          ANDROID_NDK_VERSION: "27.0.12077973"
 
+      # Upload de l'artefact
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
