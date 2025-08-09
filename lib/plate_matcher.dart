@@ -1,4 +1,3 @@
-\
 import 'dart:math';
 
 String normalizePlate(String input) {
