@@ -4,20 +4,20 @@ set -e
 echo "🔧 Téléchargement HERE SDK..."
 
 # Variables
-HERE_SDK_VERSION="4.17.0"
-HERE_SDK_URL="https://developer.here.com/downloads/here-sdk-flutter-${HERE_SDK_VERSION}.tar.gz"
-SDK_DIR="here_sdk"
+HERE_SDK_VERSION="4.22.0.0"  # Version mise à jour
+SDK_DIR="plugins/here_sdk"   # Structure correcte
 
-# Créer le dossier
-mkdir -p $SDK_DIR
+# Créer la structure de dossiers
+mkdir -p plugins
 
-# Télécharger et extraire
-echo "📦 Téléchargement depuis HERE..."
-curl -L -o here_sdk.tar.gz "$HERE_SDK_URL" \
-  --header "Authorization: Bearer $HERE_DOWNLOAD_TOKEN" \
-  --fail
+# Télécharger depuis les releases GitHub officielle
+echo "📦 Téléchargement depuis GitHub releases..."
+wget -O here_sdk.tar.gz \
+  "https://github.com/heremaps/here-sdk-ref-app-flutter/releases/download/v1.13.0/here-sdk-flutter-${HERE_SDK_VERSION}-explore.tar.gz" \
+  --header "Authorization: token $HERE_API_KEY"
 
 echo "📂 Extraction du SDK..."
+mkdir -p $SDK_DIR
 tar -xzf here_sdk.tar.gz -C $SDK_DIR --strip-components=1
 
 echo "🧹 Nettoyage..."
