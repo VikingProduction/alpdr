@@ -1,4 +1,4 @@
-name: Android APK Ultra Minimal (Test de Base)
+name: Android APK with HERE Maps (V1 Embedding Fixed)
 
 on:
   workflow_dispatch:
@@ -26,19 +26,107 @@ jobs:
         channel: 'stable'
         cache: true
 
-    - name: Backup existing files
+    - name: Download HERE SDK Reference App
       run: |
-        echo "📋 Sauvegarde des fichiers existants..."
-        [ -f pubspec.yaml ] && cp pubspec.yaml pubspec.yaml.original
-        [ -d lib ] && cp -r lib lib.original
+        echo "📦 Téléchargement du repository HERE SDK Reference App..."
 
-    - name: Create minimal placeholder HERE SDK
+        curl -L -o here_sdk_ref_app.zip           "https://github.com/heremaps/here-sdk-ref-app-flutter/archive/refs/tags/1.14.0.zip"
+
+        unzip -q here_sdk_ref_app.zip
+
+        EXTRACTED_FOLDER=$(find . -name "here-sdk-ref-app-flutter-*" -type d | head -n 1)
+
+        if [ -z "$EXTRACTED_FOLDER" ]; then
+          echo "❌ Erreur: Dossier extrait non trouvé"
+          exit 1
+        fi
+
+        echo "✅ Code source extrait: $EXTRACTED_FOLDER"
+
+    - name: Fix Android v1 to v2 embedding migration
       run: |
-        echo "🔧 Création plugin HERE SDK ultra-minimal..."
+        echo "🔧 Migration Android v1 vers v2 embedding..."
+
+        # Sauvegarder les fichiers Android existants
+        [ -f android/app/src/main/AndroidManifest.xml ] && \
+          cp android/app/src/main/AndroidManifest.xml android/app/src/main/AndroidManifest.xml.backup
+
+        # Corriger AndroidManifest.xml - Remplacer FlutterApplication par ${applicationName}
+        echo "📄 Correction du AndroidManifest.xml..."
+
+        # Créer un AndroidManifest.xml v2 embedding compatible
+        mkdir -p android/app/src/main
+        cat > android/app/src/main/AndroidManifest.xml << 'EOF'
+        <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+            package="com.example.alpr_watchlist">
+
+            <!-- Permissions -->
+            <uses-permission android:name="android.permission.INTERNET" />
+            <uses-permission android:name="android.permission.CAMERA" />
+            <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+            <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+            <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+            <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+            <application
+                android:name="${applicationName}"
+                android:label="ALPR Navigation"
+                android:icon="@mipmap/ic_launcher">
+
+                <activity
+                    android:name=".MainActivity"
+                    android:exported="true"
+                    android:launchMode="singleTop"
+                    android:theme="@style/LaunchTheme"
+                    android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+                    android:hardwareAccelerated="true"
+                    android:windowSoftInputMode="adjustResize">
+
+                    <!-- Specifies an Android theme to apply to this Activity -->
+                    <meta-data
+                        android:name="io.flutter.embedding.android.NormalTheme"
+                        android:resource="@style/NormalTheme" />
+
+                    <intent-filter android:autoVerify="true">
+                        <action android:name="android.intent.action.MAIN"/>
+                        <category android:name="android.intent.category.LAUNCHER"/>
+                    </intent-filter>
+                </activity>
+
+                <!-- V2 embedding metadata -->
+                <meta-data
+                    android:name="flutterEmbedding"
+                    android:value="2" />
+            </application>
+        </manifest>
+        EOF
+
+        echo "✅ AndroidManifest.xml mis à jour avec v2 embedding"
+
+    - name: Fix MainActivity for v2 embedding
+      run: |
+        echo "🔧 Correction du MainActivity pour v2 embedding..."
+
+        # Créer le MainActivity.kt pour v2 embedding
+        mkdir -p android/app/src/main/kotlin/com/example/alpr_watchlist
+        cat > android/app/src/main/kotlin/com/example/alpr_watchlist/MainActivity.kt << 'EOF'
+        package com.example.alpr_watchlist
+
+        import io.flutter.embedding.android.FlutterActivity
+
+        class MainActivity: FlutterActivity() {
+            // V2 embedding - pas besoin de code supplémentaire
+        }
+        EOF
+
+        echo "✅ MainActivity.kt créé avec v2 embedding"
+
+    - name: Create HERE SDK plugin
+      run: |
+        echo "🔧 Création du plugin HERE SDK..."
 
         mkdir -p plugins/here_sdk/lib
 
-        # pubspec.yaml minimal
         cat > plugins/here_sdk/pubspec.yaml << 'EOF'
         name: here_sdk
         description: HERE SDK Placeholder
@@ -52,22 +140,20 @@ jobs:
             sdk: flutter
         EOF
 
-        # Seul fichier Dart nécessaire
         cat > plugins/here_sdk/lib/here_sdk.dart << 'EOF'
-        // HERE SDK Placeholder ultra-minimal
+        // HERE SDK Placeholder
         class HereSDK {
           static void init() => print('HERE SDK placeholder');
         }
         EOF
 
-    - name: Create temporary minimal app structure
+    - name: Create UI pages to avoid import errors
       run: |
-        echo "🏗️ Création structure app temporaire..."
+        echo "🔧 Création des pages UI..."
 
-        # Créer des pages placeholder pour éviter les erreurs d'import
-        mkdir -p lib/ui lib/services lib/models lib/config
+        mkdir -p lib/ui
 
-        # Pages placeholder
+        # Créer scan_page.dart
         cat > lib/ui/scan_page.dart << 'EOF'
         import 'package:flutter/material.dart';
 
@@ -76,13 +162,23 @@ jobs:
 
           @override
           Widget build(BuildContext context) {
-            return const Center(
-              child: Text('Scanner Page - En développement'),
+            return const Scaffold(
+              body: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.camera_alt, size: 64),
+                    Text('Scanner Page'),
+                    Text('Fonctionnalité en développement'),
+                  ],
+                ),
+              ),
             );
           }
         }
         EOF
 
+        # Créer watchlist_page.dart
         cat > lib/ui/watchlist_page.dart << 'EOF'
         import 'package:flutter/material.dart';
 
@@ -91,13 +187,23 @@ jobs:
 
           @override
           Widget build(BuildContext context) {
-            return const Center(
-              child: Text('Watchlist Page - En développement'),
+            return const Scaffold(
+              body: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.list, size: 64),
+                    Text('Watchlist Page'),
+                    Text('Liste des plaques surveillées'),
+                  ],
+                ),
+              ),
             );
           }
         }
         EOF
 
+        # Créer navigation_page.dart
         cat > lib/ui/navigation_page.dart << 'EOF'
         import 'package:flutter/material.dart';
 
@@ -106,20 +212,29 @@ jobs:
 
           @override
           Widget build(BuildContext context) {
-            return const Center(
-              child: Text('Navigation Page - HERE SDK requis'),
+            return const Scaffold(
+              body: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.map, size: 64),
+                    Text('Navigation Page'),
+                    Text('HERE Maps sera intégré ici'),
+                  ],
+                ),
+              ),
             );
           }
         }
         EOF
 
-    - name: Create ultra-minimal pubspec.yaml
+    - name: Create working pubspec.yaml
       run: |
-        echo "📄 Création pubspec.yaml ultra-minimal..."
+        echo "📄 Création du pubspec.yaml..."
 
         cat > pubspec.yaml << 'EOF'
         name: alpr_watchlist
-        description: ALPR with HERE Maps
+        description: ALPR avec navigation HERE Maps
         publish_to: 'none'
         version: 1.0.0+1
 
@@ -134,7 +249,7 @@ jobs:
           here_sdk:
             path: plugins/here_sdk
 
-          # Permissions uniquement
+          # Permissions pour ALPR et navigation
           permission_handler: ^11.0.0
 
           # UI de base
@@ -153,31 +268,28 @@ jobs:
 
     - name: Clean and get dependencies
       run: |
-        echo "🧹 Nettoyage et installation..."
+        echo "🧹 Nettoyage et installation des dépendances..."
         flutter clean
         flutter pub cache repair
         flutter pub get --verbose
 
-    - name: Build minimal APK
+    - name: Build Android APK with v2 embedding
       run: |
-        echo "🔨 Build APK minimal..."
+        echo "🔨 Build APK avec v2 embedding..."
         flutter build apk --debug --verbose
 
-    - name: Test success
+    - name: Success message
       run: |
-        echo "🎉 TEST MINIMAL RÉUSSI!"
-        echo "========================"
-        echo "✅ Structure de base fonctionne"
-        echo "✅ Plugin HERE SDK placeholder OK"
-        echo "✅ Build APK réussi"
-        echo ""
-        echo "PROCHAINES ÉTAPES:"
-        echo "1. Ajouter progressivement les vraies dépendances"
-        echo "2. Implémenter les vraies pages UI"
-        echo "3. Intégrer le vrai HERE SDK"
+        echo "🎉 BUILD RÉUSSI - ANDROID V1 EMBEDDING CORRIGÉ!"
+        echo "==============================================="
+        echo "✅ Migration v1 → v2 embedding réussie"
+        echo "✅ AndroidManifest.xml corrigé"
+        echo "✅ MainActivity.kt mis à jour"
+        echo "✅ Plugin HERE SDK placeholder installé"
+        echo "✅ APK généré avec succès"
 
-    - name: Upload minimal APK
+    - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
-        name: alpr-minimal-test
+        name: alpr-android-v2-embedding-fixed
         path: build/app/outputs/flutter-apk/app-debug.apk
