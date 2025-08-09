@@ -8,11 +8,11 @@ String normalizePlate(String input) {
 
 final List<RegExp> kPlatePatterns = [
   RegExp(r"\b([A-Z]{2})[- ]?(\d{3})[- ]?([A-Z]{2})\b"), // FR
-  RegExp(r"\b(\d{4})[- ]?([A-Z]{3})\b"),                // ES
+  RegExp(r"\b(\d{4})[- ]?([A-Z]{3})\b"), // ES
   RegExp(r"\b([A-Z]{2})[- ]?(\d{3})[- ]?([A-Z]{2})\b"), // IT-like
-  RegExp(r"\b(\d{4})[- ]?([A-Z]{1,2})\b"),              // AD approx
+  RegExp(r"\b(\d{4})[- ]?([A-Z]{1,2})\b"), // AD approx
   RegExp(r"\b([A-Z]{2})[- ]?(\d{2})[- ]?([A-Z]{2})\b"), // PT
-  RegExp(r"\b([A-Z0-9]{6,8})\b"),                        // fallback
+  RegExp(r"\b([A-Z0-9]{6,8})\b"), // fallback
 ];
 
 Set<String> extractPlateCandidates(String text) {
@@ -31,7 +31,7 @@ int _levenshtein(String a, String b) {
   final m = a.length, n = b.length;
   final dp = List.generate(m + 1, (_) => List<int>.filled(n + 1, 0));
   for (var i = 0; i <= m; i++) dp[i][0] = i;
-  for (var j = 0; j <= n; j++) dp[0][j] = j;
+  for (var j = 0; j <= n; j++) dp[j] = j;
   for (var i = 1; i <= m; i++) {
     for (var j = 1; j <= n; j++) {
       final cost = a[i - 1] == b[j - 1] ? 0 : 1;
