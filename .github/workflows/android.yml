@@ -33,7 +33,7 @@ jobs:
       run: |
         echo "Téléchargement HERE SDK depuis les releases officielles..."
         wget -O here_sdk.tar.gz \
-          "https://github.com/heremaps/here-sdk-ref-app-flutter/releases/download/v1.13.0/Source%20code%20%28tar.gz%29"
+          "https://github.com/heremaps/here-sdk-ref-app-flutter/archive/refs/tags/1.14.0.zip"
         
         # Extraire dans le bon dossier
         mkdir -p plugins/here_sdk
