@@ -8,36 +8,52 @@ on:
 jobs:
   build-debug:
     runs-on: ubuntu-latest
+    env:
+      ANDROID_SDK_ROOT: ${{ github.workspace }}/android-sdk
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Setup Flutter dans la bonne version
+      # Install Flutter 3.32.8 / Dart >= 3.5.0
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.32.8'  # Dart >= 3.5.0
+          flutter-version: '3.32.8'
           channel: 'stable'
 
-      - name: Flutter version
+      - name: Show Flutter version
         run: flutter --version
 
-      # Installation NDK 27
-      - name: Install Android NDK 27
+      # Install Android SDK command line tools
+      - name: Install Android SDK command line tools
         run: |
-          yes | sdkmanager --install "ndk;27.0.12077973"
-          sdkmanager --list | grep ndk || true
+          mkdir -p $ANDROID_SDK_ROOT/cmdline-tools
+          curl -o commandlinetools.zip https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip
+          unzip -q commandlinetools.zip -d $ANDROID_SDK_ROOT/cmdline-tools
+          mkdir -p $ANDROID_SDK_ROOT/cmdline-tools/latest
+          mv $ANDROID_SDK_ROOT/cmdline-tools/cmdline-tools $ANDROID_SDK_ROOT/cmdline-tools/latest
+          export PATH=$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$PATH
+          yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --licenses
 
-      # Récupération des dépendances
+      # Install NDK 27.0.12077973
+      - name: Install Android NDK 27
+        env:
+          ANDROID_SDK_ROOT: ${{ env.ANDROID_SDK_ROOT }}
+          PATH: ${{ env.ANDROID_SDK_ROOT }}/cmdline-tools/latest/bin:${{ env.PATH }}
+        run: |
+          $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager "ndk;27.0.12077973"
+          ls $ANDROID_SDK_ROOT/ndk
+
+      # Retrieve Flutter dependencies
       - name: Pub get
         run: flutter pub get
 
-      # Création de la plateforme Android si manquante
+      # Create Android platform if missing
       - name: Create Android platform (if missing)
         run: flutter create . --platforms=android
 
-      # Ajout des permissions caméra si absentes
+      # Ensure camera permissions in AndroidManifest
       - name: Ensure camera permission in AndroidManifest
         run: |
           MANIFEST="android/app/src/main/AndroidManifest.xml"
@@ -47,13 +63,11 @@ jobs:
             fi
           fi
 
-      # Build de l'APK debug avec le NDK 27 défini
+      # Build debug APK (NDK version detected automatically)
       - name: Build debug APK
         run: flutter build apk --debug
-        env:
-          ANDROID_NDK_VERSION: "27.0.12077973"
 
-      # Upload de l'artefact
+      # Upload debug APK as artifact
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
