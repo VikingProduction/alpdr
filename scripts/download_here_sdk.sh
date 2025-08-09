@@ -13,8 +13,7 @@ mkdir -p plugins
 # Télécharger depuis les releases GitHub officielle
 echo "📦 Téléchargement depuis GitHub releases..."
 wget -O here_sdk.tar.gz \
-  "https://github.com/heremaps/here-sdk-ref-app-flutter/releases/download/v1.13.0/here-sdk-flutter-${HERE_SDK_VERSION}-explore.tar.gz" \
-  --header "Authorization: token $HERE_API_KEY"
+  "https://github.com/heremaps/here-sdk-ref-app-flutter/archive/refs/tags/1.14.0.zip"
 
 echo "📂 Extraction du SDK..."
 mkdir -p $SDK_DIR
