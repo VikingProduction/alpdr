@@ -10,51 +10,70 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+    - name: Checkout repository
+      uses: actions/checkout@v4
 
-      - name: Setup Java 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'zulu'
-          java-version: '17'
+    - name: Setup Java 17
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'zulu'
+        java-version: '17'
 
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: '3.32.8'
-          channel: 'stable'
+    - name: Setup Flutter
+      uses: subosito/flutter-action@v2
+      with:
+        flutter-version: '3.27.4'  # Version compatible HERE SDK 4.22.0.0
+        channel: 'stable'
+        cache: true
 
-      - name: Download HERE SDK
-        run: |
-          chmod +x scripts/download_here_sdk.sh
-          ./scripts/download_here_sdk.sh
-        env:
-          HERE_DOWNLOAD_TOKEN: ${{ secrets.HERE_DOWNLOAD_TOKEN }}
+    - name: Create plugins directory
+      run: mkdir -p plugins
 
-      - name: Configure HERE API credentials
-        run: |
-          mkdir -p lib/config
-          cat > lib/config/here_config.dart << EOF
-          class HereConfig {
-            static const String apiKey = '${{ secrets.HERE_API_KEY }}';
-            static const String appId = '${{ secrets.HERE_APP_ID }}';
-            
-            static const double radarAlertDistance = 1000.0;
-            static const double speedTolerance = 5.0;
-            static const bool offlineMapsEnabled = true;
-            static const String voiceLanguage = 'fr-FR';
-          }
-          EOF
+    - name: Download HERE SDK from official releases
+      run: |
+        echo "Téléchargement HERE SDK depuis les releases officielles..."
+        wget -O here_sdk.tar.gz \
+          "https://github.com/heremaps/here-sdk-ref-app-flutter/releases/download/v1.13.0/Source%20code%20%28tar.gz%29"
+        
+        # Extraire dans le bon dossier
+        mkdir -p plugins/here_sdk
+        # Note: Vous devrez adapter selon la structure exacte du tar.gz
 
-      - name: Pub get
-        run: flutter pub get
+    - name: Configure HERE credentials in Android manifest
+      run: |
+        mkdir -p android/app/src/main
+        # Ajouter les credentials au manifest Android
+        sed -i '/<application/a \
+            <meta-data android:name="com.here.sdk.access_key_id" android:value="${{ secrets.HERE_API_KEY }}" /> \
+            <meta-data android:name="com.here.sdk.access_key_secret" android:value="${{ secrets.HERE_APP_ID }}" />' \
+            android/app/src/main/AndroidManifest.xml
 
-      - name: Build debug APK
-        run: flutter build apk --debug
+    - name: Configure HERE API credentials
+      run: |
+        mkdir -p lib/config
+        cat > lib/config/here_config.dart << EOF
+        class HereConfig {
+          static const String accessKeyId = '${{ secrets.HERE_API_KEY }}';
+          static const String accessKeySecret = '${{ secrets.HERE_APP_ID }}';
+          
+          static const double radarAlertDistance = 1000.0;
+          static const double speedTolerance = 5.0;
+          static const bool offlineMapsEnabled = true;
+          static const String voiceLanguage = 'fr-FR';
+        }
+        EOF
 
-      - name: Upload debug APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: alpr-navigation-debug-apk
-          path: build/app/outputs/flutter-apk/app-debug.apk
+    - name: Get Flutter dependencies
+      run: flutter pub get
+
+    - name: Analyze Flutter code
+      run: flutter analyze
+
+    - name: Build debug APK
+      run: flutter build apk --debug --verbose
+
+    - name: Upload debug APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: alpr-navigation-debug-apk
+        path: build/app/outputs/flutter-apk/app-debug.apk
