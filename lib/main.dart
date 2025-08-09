@@ -1,11 +1,25 @@
 import 'package:flutter/material.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'ui/scan_page.dart';
 import 'ui/watchlist_page.dart';
-// TODO: import 'ui/navigation_page.dart'; // À ajouter plus tard
+import 'ui/navigation_page.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // Demander les permissions nécessaires
+  await _requestPermissions();
+  
   runApp(const AlprApp());
+}
+
+Future<void> _requestPermissions() async {
+  await [
+    Permission.camera,
+    Permission.location,
+    Permission.locationWhenInUse,
+    Permission.notification,
+  ].request();
 }
 
 class AlprApp extends StatefulWidget {
@@ -21,7 +35,7 @@ class _AlprAppState extends State<AlprApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'ALPR Watchlist',
+      title: 'ALPR Navigation',
       theme: ThemeData(
         colorSchemeSeed: Colors.indigo,
         brightness: Brightness.dark,
@@ -33,7 +47,7 @@ class _AlprAppState extends State<AlprApp> {
           children: const [
             ScanPage(),
             WatchlistPage(),
-            // TODO: NavigationPage(), // À ajouter plus tard
+            NavigationPage(),
           ],
         ),
         bottomNavigationBar: NavigationBar(
@@ -48,11 +62,10 @@ class _AlprAppState extends State<AlprApp> {
               icon: Icon(Icons.list_alt),
               label: 'Watchlist',
             ),
-            // TODO: À décommenter plus tard pour la navigation
-            // NavigationDestination(
-            //   icon: Icon(Icons.map_outlined),
-            //   label: 'Navigation',
-            // ),
+            NavigationDestination(
+              icon: Icon(Icons.map_outlined),
+              label: 'Navigation',
+            ),
           ],
         ),
       ),
