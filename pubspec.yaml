@@ -1,5 +1,5 @@
 name: alpr_watchlist
-description: Scan plaques d’immatriculation (OCR) en flux vidéo + alerte watchlist (Android/iOS)
+description: Scan plaques d'immatriculation (OCR) en flux vidéo + alerte watchlist + navigation HERE Maps
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -9,9 +9,22 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+    
+  # ALPR existant
   camera: ^0.11.0
   google_mlkit_text_recognition: ^0.15.0
   shared_preferences: ^2.3.4
+  
+  # Navigation HERE Maps + Radar
+  here_sdk: ^4.17.0
+  geolocator: ^10.1.0
+  permission_handler: ^11.0.0
+  awesome_notifications: ^0.8.2
+  http: ^1.1.0
+  
+  # UI/UX
+  flutter_map: ^6.1.0  # Backup si HERE pose problème
+  latlong2: ^0.8.1
 
 dev_dependencies:
   flutter_test:
@@ -20,3 +33,5 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/sounds/  # Sons d'alertes radar
